@@ -1,6 +1,8 @@
 streamlit
 pandas
 snowflake-connector-python
+google.generativeai
+google-generativeai
 google-genai
 typing
 langgraph
