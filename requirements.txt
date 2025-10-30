@@ -7,3 +7,5 @@ google-genai
 typing
 langgraph
 langchain-google-genai
+plotly
+json
