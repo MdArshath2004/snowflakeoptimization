@@ -1,0 +1,5 @@
+# Requirements for the Streamlit app
+streamlit
+
+# Requirement for connecting to Snowflake
+snowflake-connector-python
