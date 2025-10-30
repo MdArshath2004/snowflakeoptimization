@@ -1,7 +1,6 @@
-streamlit==1.28.0
-pandas==2.0.3
-snowflake-connector-python==3.2.0
-google-generativeai==0.3.0
-langgraph==0.0.40
-langchain-google-genai==0.0.2
-python-dotenv==1.0.0
+streamlit
+pandas
+snowflake-connector-python
+google-genai # <--- ADD THIS LINE
+langgraph
+langchain-google-genai
