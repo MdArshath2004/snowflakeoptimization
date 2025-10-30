@@ -1,35 +1,13 @@
-# Requirements for the Streamlit app
+# Application Framework
 streamlit
 
-# Requirement for connecting to Snowflake
-snowflake-connector-python
-# --- Core Application Dependencies ---
-streamlit
+# Core Data Library
 pandas
 
-# --- Database Connector ---
+# Database Connector
 snowflake-connector-python
 
-# --- AI & LLM Libraries ---
-google-genai                 # Needed for 'import google.generativeai'
-langchain-google-genai       # Needed for 'from langchain_google_genai import...'
-langgraph                    # Needed for 'from langgraph.graph import...'
-
-# --- Standard Library Modules (No requirement needed) ---
-# The 'typing' module (e.g., TypedDict, List, Dict) is part of Python's
-# standard library, so it does not need to be listed.
-# Requirements for the Streamlit app
-streamlit
-
-# Requirement for connecting to Snowflake
-snowflake-connector-python
-
-# Requirement for using Google's Generative AI SDK (for 'google.generativeai')
-google-genai 
-
-# Requirement for using LangChain with Google Generative AI (for 'langchain_google_genai')
+# AI/LLM Libraries
+google-genai
 langchain-google-genai
-
-# Other modules you are using: pandas, langgraph
-pandas
 langgraph
