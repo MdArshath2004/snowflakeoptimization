@@ -3,3 +3,19 @@ streamlit
 
 # Requirement for connecting to Snowflake
 snowflake-connector-python
+
+# Requirements for the Streamlit app
+streamlit
+
+# Requirement for connecting to Snowflake
+snowflake-connector-python
+
+# Requirement for using Google's Generative AI SDK (for 'google.generativeai')
+google-genai 
+
+# Requirement for using LangChain with Google Generative AI (for 'langchain_google_genai')
+langchain-google-genai
+
+# Other modules you are using: pandas, langgraph
+pandas
+langgraph
