@@ -1,9 +1,7 @@
-streamlit
-pandas
-snowflake-connector-python
-plotly  # Added based on your new imports
-
-# Force known compatible versions for the LangChain ecosystem
-langchain-core
-langchain-google-genai
-langgraph
+streamlit==1.28.0
+pandas==2.0.3
+snowflake-connector-python==3.2.0
+google-generativeai==0.3.0
+langgraph==0.0.40
+langchain-google-genai==0.0.2
+python-dotenv==1.0.0
