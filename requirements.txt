@@ -4,6 +4,6 @@ snowflake-connector-python
 plotly  # Added based on your new imports
 
 # Force known compatible versions for the LangChain ecosystem
-langchain-core==0.1.60
-langchain-google-genai==0.0.17
-langgraph==0.0.60
+langchain-core
+langchain-google-genai
+langgraph
