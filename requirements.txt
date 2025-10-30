@@ -1,13 +1,7 @@
-# Application Framework
-streamlit
-
-# Core Data Library
-pandas
-
-# Database Connector
-snowflake-connector-python
-
-# AI/LLM Libraries
-google-genai
-langchain-google-genai
-langgraph
+streamlit==1.38.0
+pandas==2.2.3
+snowflake-connector-python==3.11.0
+langchain==0.3.5
+langgraph==0.1.3
+langchain-google-genai==1.0.5
+google-generativeai==0.8.3
