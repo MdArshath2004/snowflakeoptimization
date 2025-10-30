@@ -13,17 +13,22 @@ import time
 import os
 
 # ==============================================================================
-# ⚠️ HARDCODED CREDENTIALS (SECURITY RISK - For demonstration only)
+# ✅ SECURE CREDENTIALS: Load ALL sensitive info from Environment Variables
+# These variables MUST be set in your Render dashboard settings.
 # ==============================================================================
-GEMINI_API_KEY = "AIzaSyB6iL-_lsdXyXSGa8HpmeAKjavgf0amVUs" 
 
+# 1. Gemini API Key
+GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY") 
+
+# 2. Snowflake Configuration
+# All sensitive and configuration details are loaded from environment variables.
 SNOWFLAKE_CONFIG = {
-    'account': 'CG76792.central-india.azure',
-    'user': 'MOHAMEDARSHATH2',
-    'password': 'Arshath@302004',
-    'database': 'SYNTHETIC_OPTIMIZATION_DEMO',
-    'schema': 'MASSIVE_DATA',
-    'warehouse': 'COMPUTE_WH'
+    'account': os.environ.get('SF_ACCOUNT'),
+    'user': os.environ.get('SF_USER'),
+    'password': os.environ.get('SF_PASSWORD'), # <-- CRITICAL SECRET
+    'database': os.environ.get('SF_DATABASE'),
+    'schema': os.environ.get('SF_SCHEMA'),
+    'warehouse': os.environ.get('SF_WAREHOUSE')
 }
 
 # Application constraints and resources
@@ -37,8 +42,13 @@ USABLE_WAREHOUSES = [
     "SNOWFLAKE_LEARNING_WH"
 ]
 
+# --- Deployment Checks ---
 if not GEMINI_API_KEY:
-    st.error("FATAL: GEMINI_API_KEY is empty.")
+    st.error("FATAL: GEMINI_API_KEY environment variable is not set. Please set it in Render.")
+    st.stop()
+
+if not SNOWFLAKE_CONFIG['password'] or not SNOWFLAKE_CONFIG['account']:
+    st.error("FATAL: Essential Snowflake environment variables (SF_PASSWORD and SF_ACCOUNT) are not set. Cannot connect to Snowflake.")
     st.stop()
 
 
@@ -103,6 +113,7 @@ class WarehouseOptimizerAgent:
     
     def get_snowflake_connection(self, warehouse=None):
         """Create Snowflake connection with optional dynamic warehouse override."""
+        # Use the securely loaded configuration dictionary
         return snowflake.connector.connect(
             account=self.sf_config['account'],
             user=self.sf_config['user'],
@@ -195,33 +206,33 @@ PERFORMANCE BASELINE:
 MANDATORY OPTIMIZATION TECHNIQUES (Apply at least 2-3 relevant techniques):
 
 1. **SELECT Optimization**:
-   - Replace SELECT * with explicit columns
-   - Remove unused columns
-   - Use approximate functions (APPROX_COUNT_DISTINCT) for large datasets
+    - Replace SELECT * with explicit columns
+    - Remove unused columns
+    - Use approximate functions (APPROX_COUNT_DISTINCT) for large datasets
 
 2. **WHERE Clause Optimization**:
-   - Push filters earlier in subqueries/CTEs
-   - Avoid functions on indexed columns (e.g., UPPER(column) = 'VALUE')
-   - Use partition pruning where possible
+    - Push filters earlier in subqueries/CTEs
+    - Avoid functions on indexed columns (e.g., UPPER(column) = 'VALUE')
+    - Use partition pruning where possible
 
 3. **JOIN Optimization**:
-   - Reorder joins to process smaller tables first
-   - Convert subqueries to JOINs where beneficial
-   - Add join conditions to reduce Cartesian products
+    - Reorder joins to process smaller tables first
+    - Convert subqueries to JOINs where beneficial
+    - Add join conditions to reduce Cartesian products
 
 4. **Subquery Optimization**:
-   - Convert correlated subqueries to JOINs
-   - Use QUALIFY instead of window function subqueries
-   - Move subqueries to CTEs for better readability
+    - Convert correlated subqueries to JOINs
+    - Use QUALIFY instead of window function subqueries
+    - Move subqueries to CTEs for better readability
 
 5. **Aggregation Optimization**:
-   - Filter before GROUP BY when possible
-   - Remove unnecessary DISTINCT
-   - Use HAVING only for aggregate filters
+    - Filter before GROUP BY when possible
+    - Remove unnecessary DISTINCT
+    - Use HAVING only for aggregate filters
 
 6. **Snowflake-Specific**:
-   - Leverage result caching hints (if appropriate)
-   - Consider the underlying table structure (clustering keys) for filtering
+    - Leverage result caching hints (if appropriate)
+    - Consider the underlying table structure (clustering keys) for filtering
 
 VALIDATION RULES:
 ✅ MUST produce identical results as original
@@ -359,7 +370,7 @@ def page_1_load_data():
     
     col1, col2 = st.columns([3, 1])
     with col1:
-        st.info(f"Table: **snowflake_datas** | Database: {SNOWFLAKE_CONFIG['database']}")
+        st.info(f"Table: **snowflake_datas** | Database: {SNOWFLAKE_CONFIG.get('database', 'UNKNOWN')}")
     with col2:
         if st.button("🔄 Load All Records", type="primary"):
             try:
@@ -411,7 +422,7 @@ def page_1_load_data():
 
 # ----------------- PAGE 2: LLM ANALYSIS AND OPTIMIZATION -----------------
 def page_2_analysis():
-    st.header("🤖  LLM Analysis and Optimization")
+    st.header("🤖  LLM Analysis and Optimization")
     
     if st.button("⬅️ Back to Data Selection", key="back_to_page1"):
         set_page("data_load")
@@ -493,7 +504,7 @@ def page_2_analysis():
                     st.code(rec['optimized_query'], language="sql")
 
         st.markdown("---")
-        st.header("⚡  Execution Validation")
+        st.header("⚡  Execution Validation")
         if st.button("🚀 Proceed to Validation (Step 4)", type="primary", use_container_width=True):
             set_page("validation")
             st.rerun()
