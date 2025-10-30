@@ -1,6 +1,7 @@
 streamlit
 pandas
 snowflake-connector-python
-google-genai # <--- ADD THIS LINE
+google-genai
+typing
 langgraph
 langchain-google-genai
