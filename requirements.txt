@@ -8,4 +8,3 @@ typing
 langgraph
 langchain-google-genai
 plotly
-json
