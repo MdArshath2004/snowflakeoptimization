@@ -12,10 +12,6 @@ import json
 import time
 import os
 
-# ==============================================================================
-# ✅ FIX: SECURE CREDENTIALS LOADED FROM ENVIRONMENT VARIABLES
-# Your actual secrets must be set in the Render/Streamlit Cloud dashboard.
-# ==============================================================================
 
 # 1. Gemini API Key
 GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY") 
@@ -24,7 +20,7 @@ GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY")
 SNOWFLAKE_CONFIG = {
     'account': os.environ.get('SF_ACCOUNT'),
     'user': os.environ.get('SF_USER'),
-    'password': os.environ.get('SF_PASSWORD'), # <-- CRITICAL SECRET
+    'password': os.environ.get('SF_PASSWORD'), 
     'database': os.environ.get('SF_DATABASE'),
     'schema': os.environ.get('SF_SCHEMA'),
     'warehouse': os.environ.get('SF_WAREHOUSE')
@@ -662,6 +658,7 @@ def main():
 
 if __name__ == "__main__":
     main()
+
 
 
 
