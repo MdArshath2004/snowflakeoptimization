@@ -364,13 +364,13 @@ def set_page(page_name):
 
 # ----------------- PAGE 1: DATA LOADING AND SELECTION -----------------
 def page_1_load_data():
-    st.header("📊 Load Data and Select Records")
+    st.header(" Load Data and Select Records")
     
     col1, col2 = st.columns([3, 1])
     with col1:
         st.info(f"Table: **snowflake_datas** | Database: {SNOWFLAKE_CONFIG.get('database', 'UNKNOWN')}")
     with col2:
-        if st.button("🔄 Load All Records", type="primary"):
+        if st.button(" Load All Records", type="primary"):
             try:
                 with st.spinner("Connecting to Snowflake and loading records..."):
                     conn = snowflake.connector.connect(**SNOWFLAKE_CONFIG)
@@ -433,7 +433,7 @@ def page_2_analysis():
     col1, col2 = st.columns(2)
     
     with col1:
-        if st.button("🧠 Run LLM Analysis & Get Recommendations", type="primary", use_container_width=True):
+        if st.button(" Run LLM Analysis & Get Recommendations", type="primary", use_container_width=True):
             try:
                 agent = WarehouseOptimizerAgent(GEMINI_API_KEY, SNOWFLAKE_CONFIG)
                 st.session_state.recommendations = []
@@ -557,7 +557,7 @@ def page_3_validation_and_results():
         col1, col2, col3, col4 = st.columns(4)
         
         with col1:
-            st.metric("✅ Successful Runs", f"{successful}/{len(st.session_state.execution_results)}")
+            st.metric(" Successful Runs", f"{successful}/{len(st.session_state.execution_results)}")
         
         with col2:
             avg_improvement = sum([
@@ -629,8 +629,8 @@ def main():
     # Render the fixed, global header
     st.markdown("""
     <div class="main-header">
-        <h1>🤖 Snowflake Warehouse Optimizer with AI Agent</h1>
-        <p>Analyze queries, recommend warehouses, optimize SQL, and verify automatically using Gemini & LangGraph.</p>
+        <h1>🤖 Snowflake Warehouse and Query Optimizer </h1>
+        <p>Analyze queries, recommend warehouses and optimize SQL.</p>
     </div>
     """, unsafe_allow_html=True)
     
@@ -664,3 +664,4 @@ def main():
 
 if __name__ == "__main__":
     main()
+
