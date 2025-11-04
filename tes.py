@@ -190,8 +190,6 @@ Response as JSON:
         """Step 2: LLM optimizes SQL query based on best practices using the enhanced prompt."""
         
         prompt = f"""
-CRITICAL REQUIREMENT: You MUST return a DIFFERENT, OPTIMIZED query. Do NOT return the original query unchanged.
-
 You are an expert Snowflake SQL Performance Engineer. Analyze and optimize the following query for maximum performance while maintaining identical results.
 
 ORIGINAL QUERY:{state['query_text']}
@@ -664,6 +662,7 @@ def main():
 
 if __name__ == "__main__":
     main()
+
 
 
 
