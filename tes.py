@@ -629,7 +629,7 @@ def main():
     # Render the fixed, global header
     st.markdown("""
     <div class="main-header">
-        <h1>🤖 Snowflake Warehouse and Query Optimizer </h1>
+        <h1>Snowflake Warehouse and Query Optimizer </h1>
         <p>Analyze queries, recommend warehouses and optimize SQL.</p>
     </div>
     """, unsafe_allow_html=True)
@@ -664,5 +664,6 @@ def main():
 
 if __name__ == "__main__":
     main()
+
 
 
