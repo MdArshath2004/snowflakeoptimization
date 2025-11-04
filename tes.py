@@ -156,16 +156,12 @@ Response as JSON:
         try:
             response = self.genai_model.invoke(prompt)
             result_text = response.content.strip()
-            
-            # Robust JSON cleaning
             if "```json" in result_text:
                 result_text = result_text.split("```json")[1].split("```")[0].strip()
             elif "```" in result_text:
                 result_text = result_text.split("```")[1].split("```")[0].strip()
             
             result = json.loads(result_text)
-            
-            # Validation check: ensure LLM output is a valid, usable warehouse
             recommended_wh = result['recommended_warehouse'].upper().strip()
             if recommended_wh not in [w.upper() for w in USABLE_WAREHOUSES]:
                 state['recommended_warehouse'] = state['original_warehouse']
@@ -658,6 +654,7 @@ def main():
 
 if __name__ == "__main__":
     main()
+
 
 
 
