@@ -412,7 +412,7 @@ def page_1_load_data():
         st.dataframe(st.session_state.selected_records, use_container_width=True, height=200)
 
         st.markdown("---")
-        if st.button("➡️ Proceed to Analysis (Step 3)", type="secondary", use_container_width=True):
+        if st.button("➡️ Proceed to Analysis and optimization", type="secondary", use_container_width=True):
             if len(st.session_state.selected_records) > 0:
                 st.session_state.execution_results = [] 
                 set_page("analysis")
@@ -664,4 +664,5 @@ def main():
 
 if __name__ == "__main__":
     main()
+
 
