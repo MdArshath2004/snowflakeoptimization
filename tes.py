@@ -228,10 +228,6 @@ VALIDATION RULES:
 ✅ MUST include at least 2 meaningful optimizations
 ❌ CANNOT return the exact same query as original
 
-If the query is already optimal and cannot be improved, apply these minimal changes:
-- Convert SELECT * to explicit column list
-- Add query comments with optimization notes
-- Format for better readability
 
 Response as JSON:
 {{
@@ -654,6 +650,7 @@ def main():
 
 if __name__ == "__main__":
     main()
+
 
 
 
