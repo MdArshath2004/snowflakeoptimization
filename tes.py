@@ -10,12 +10,8 @@ from datetime import datetime
 import json
 import time
 import os
-from dotenv import load_dotenv # Required to load variables from .env file
+# Required to load variables from .env file
 
-# ==================== CONFIGURATION & SECRETS ====================
-
-# --- LOAD ENVIRONMENT VARIABLES ---
-load_dotenv()
 
 # 1. Gemini API Key
 GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY") 
@@ -376,3 +372,4 @@ def main():
 
 if __name__ == "__main__":
     main()
+
