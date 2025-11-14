@@ -5,11 +5,13 @@ import google.generativeai as genai
 from typing import TypedDict, List, Dict
 from langgraph.graph import StateGraph, END # Required for Agentic Workflow
 from langchain_google_genai import ChatGoogleGenerativeAI
+import plotly.express as px
 import plotly.graph_objects as go
 from datetime import datetime
 import json
 import time
 import os
+# dotenv import REMOVED
 
 # ==================== CONFIGURATION & SECRETS (HARDCODED) ====================
 
@@ -27,8 +29,8 @@ SNOWFLAKE_CONFIG = {
 }
 
 # Target table path components
-TARGET_DB = SNOWFLAKE_CONFIG.get('database')
-TARGET_SCHEMA = SNOWFLAKE_CONFIG.get('schema')
+TARGET_DB = SNOWFLAKE_CONFIG['database']
+TARGET_SCHEMA = SNOWFLAKE_CONFIG['schema']
 TARGET_TABLE_NAME = "OPTIMIZER_BASELINE_DATA" 
 TARGET_TABLE_FULL = f"{TARGET_DB}.{TARGET_SCHEMA}.{TARGET_TABLE_NAME}"
 
@@ -159,7 +161,16 @@ Current Query Details:
 
 Query:
 {state['query_text']}
-... (Prompt logic here) ...
+
+Analyze complexity (SELECT, JOIN, GROUP BY, aggregations, subqueries, data volume) and recommend:
+1. Best warehouse name (must be one of: {available_wh_list})
+2. Clear reasoning in 2 to 3 lines
+
+Guidelines:
+- Match warehouse size to query complexity to balance speed and cost.
+- Simple SELECT with filters → X-SMALL or SMALL warehouses (WH_XSMALL_SYNTHETIC, SNOWFLAKE_LEARNING_WH)
+- Complex joins, multiple aggregations → LARGE warehouses (WH_LARGE_SYNTHETIC, WH_XLARGE_SYNTHETIC)
+
 Response as JSON:
 {{
     "recommended_warehouse": "WAREHOUSE_NAME_FROM_LIST",
@@ -543,7 +554,7 @@ def page_3_validation_and_results():
             st.plotly_chart(fig, use_container_width=True)
 
         # --- RESULTS DATAFRAME ---
-        st.subheader("Detailed Results Table")
+        st.subheader("Detailed Results Table")    
         results_df = pd.DataFrame([{
             'Query ID': r['query_id'],
             'Original WH': r['original_warehouse'],
@@ -575,7 +586,7 @@ def main():
     # Render the fixed, global header
     st.markdown("""
     <div class="main-header">
-        <h1>🤖 Snowflake Warehouse and Query Optimizer </h1>
+        <h1>🤖 Snowflake Warehouse Optimizer with AI Agent</h1>
         <p>Analyze queries, recommend warehouses, optimize SQL, and verify automatically using Gemini & LangGraph.</p>
     </div>
     """, unsafe_allow_html=True)
@@ -610,4 +621,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-
