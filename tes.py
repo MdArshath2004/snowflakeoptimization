@@ -3,24 +3,20 @@ import pandas as pd
 import snowflake.connector
 import google.generativeai as genai
 from typing import TypedDict, List, Dict
-from langgraph.graph import StateGraph, END # Required for Agentic Workflow
+from langgraph.graph import StateGraph, END
 from langchain_google_genai import ChatGoogleGenerativeAI
+import plotly.express as px
 import plotly.graph_objects as go
 from datetime import datetime
 import json
 import time
 import os
-from dotenv import load_dotenv # Required to load variables from .env file
 
-# ==================== CONFIGURATION & SECRETS ====================
-
-# --- LOAD ENVIRONMENT VARIABLES ---
-load_dotenv()
 
 # 1. Gemini API Key
 GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY") 
 
-# 2. Snowflake Configuration (Reads values directly from os.environ)
+# 2. Snowflake Configuration
 SNOWFLAKE_CONFIG = {
     'account': os.environ.get('SF_ACCOUNT'),
     'user': os.environ.get('SF_USER'),
@@ -29,11 +25,6 @@ SNOWFLAKE_CONFIG = {
     'schema': os.environ.get('SF_SCHEMA'),
     'warehouse': os.environ.get('SF_WAREHOUSE')
 }
-
-# Target table path components (Used in Page 1)
-TARGET_DB = SNOWFLAKE_CONFIG.get('database')
-TARGET_SCHEMA = SNOWFLAKE_CONFIG.get('schema')
-TARGET_TABLE_NAME = "OPTIMIZER_BASELINE_DATA" 
 
 # Application constraints and resources
 USABLE_WAREHOUSES = [
@@ -46,19 +37,43 @@ USABLE_WAREHOUSES = [
     "SNOWFLAKE_LEARNING_WH"
 ]
 
-# --- Deployment Checks ---
+# --- Deployment Checks (Remain necessary) ---
 if not GEMINI_API_KEY:
     st.error("FATAL: GEMINI_API_KEY environment variable is not set. Please set it in your hosting platform's environment settings.")
     st.stop()
 
 if not SNOWFLAKE_CONFIG.get('password') or not SNOWFLAKE_CONFIG.get('account'):
-    st.error("FATAL: Essential Snowflake connection variables are missing. Check your .env file.")
+    st.error("FATAL: Essential Snowflake environment variables (SF_PASSWORD, SF_ACCOUNT, etc.) are missing. Cannot connect to Snowflake.")
     st.stop()
 
 
-# ==================== AGENT STATE DEFINITION ====================
+# ==============================================================================
+# STREAMLIT SETUP AND AGENT STATE DEFINITION
+# ==============================================================================
+
+st.set_page_config(
+    page_title="LLM Warehouse Optimizer",
+    page_icon="🤖",
+    layout="wide"
+)
+
+st.markdown("""
+<style>
+    .main-header {
+        background: linear-gradient(90deg, #1e3a8a 0%, #3b82f6 100%);
+        padding: 2rem;
+        border-radius: 10px;
+        color: white;
+        text-align: center;
+        margin-bottom: 2rem;
+    }
+    .stButton>button {
+        width: 100%;
+    }
+</style>
+""", unsafe_allow_html=True)
+
 class AgentState(TypedDict):
-    """The shared memory for the LangGraph workflow."""
     query_id: str
     query_text: str
     original_warehouse: str
@@ -66,7 +81,7 @@ class AgentState(TypedDict):
     original_execution_time_ms: float
     original_bytes_scanned: float
     original_efficiency_score: float
-    original_estimated_cost: float # This field name is aliased from ORIGINAL_COST
+    original_estimated_cost: float
     recommended_warehouse: str
     optimization_reason: str
     optimized_query: str
@@ -77,21 +92,10 @@ class AgentState(TypedDict):
     execution_status: str
     error_message: str
 
-# ==================== HELPER FUNCTION: SAFE CONNECTION MANAGER ====================
-def _create_snowflake_connection_safe(config: Dict):
-    """Establishes a Snowflake connection and automatically resumes the warehouse."""
-    try:
-        conn = snowflake.connector.connect(**config)
-        warehouse_name = config.get('warehouse', 'COMPUTE_WH')
-        cursor = conn.cursor()
-        cursor.execute(f"ALTER WAREHOUSE {warehouse_name} RESUME IF SUSPENDED;")
-        cursor.close()
-        return conn
-    except Exception as e:
-        st.error(f"❌ Snowflake Connection Failed: {e}")
-        raise e
+# ==============================================================================
+# WAREHOUSE OPTIMIZER AGENT CLASS (LANGGRAPH NODES)
+# ==============================================================================
 
-# ==================== AGENT 1: GEMINI LLM AGENT ====================
 class WarehouseOptimizerAgent:
     def __init__(self, gemini_api_key: str, sf_config: dict):
         self.genai_model = ChatGoogleGenerativeAI(
@@ -121,7 +125,28 @@ class WarehouseOptimizerAgent:
         prompt = f"""You are a Snowflake warehouse optimization expert. Analyze this query and recommend the best warehouse.
 
 Available Warehouses (You MUST choose one of these exact names): {available_wh_list}
-... (Simplified prompt for brevity, actual prompt is complex and uses all state metrics) ...
+
+Current Query Details:
+- Query ID: {state['query_id']}
+- Current Warehouse: {state['original_warehouse']}
+- Query Type: {state['query_type']}
+- Execution Time: {state['original_execution_time_ms']} ms
+- Bytes Scanned: {state['original_bytes_scanned']} bytes
+- Efficiency Score: {state['original_efficiency_score']}
+- Current Cost: ${state['original_estimated_cost']}
+
+Query:
+{state['query_text']}
+
+Analyze complexity (SELECT, JOIN, GROUP BY, aggregations, subqueries, data volume) and recommend:
+1. Best warehouse name (must be one of: {available_wh_list})
+2. Clear reasoning in 2 to 3 lines
+
+Guidelines:
+- Match warehouse size to query complexity to balance speed and cost.
+- Simple SELECT with filters → X-SMALL or SMALL warehouses (WH_XSMALL_SYNTHETIC, SNOWFLAKE_LEARNING_WH)
+- Complex joins, multiple aggregations → LARGE warehouses (WH_LARGE_SYNTHETIC, WH_XLARGE_SYNTHETIC)
+
 Response as JSON:
 {{
     "recommended_warehouse": "WAREHOUSE_NAME_FROM_LIST",
@@ -131,13 +156,13 @@ Response as JSON:
         try:
             response = self.genai_model.invoke(prompt)
             result_text = response.content.strip()
-            
-            if "```json" in result_text: result_text = result_text.split("```json")[1].split("```")[0].strip()
-            elif "```" in result_text: result_text = result_text.split("```")[1].split("```")[0].strip()
+            if "```json" in result_text:
+                result_text = result_text.split("```json")[1].split("```")[0].strip()
+            elif "```" in result_text:
+                result_text = result_text.split("```")[1].split("```")[0].strip()
             
             result = json.loads(result_text)
             recommended_wh = result['recommended_warehouse'].upper().strip()
-            
             if recommended_wh not in [w.upper() for w in USABLE_WAREHOUSES]:
                 state['recommended_warehouse'] = state['original_warehouse']
                 state['optimization_reason'] = f"LLM suggested an invalid warehouse: {recommended_wh}. Using original warehouse."
@@ -154,11 +179,59 @@ Response as JSON:
     
     # ----------------- LANGGRAPH NODE 2: OPTIMIZE QUERY -----------------
     def optimize_query(self, state: AgentState) -> AgentState:
-        """Step 2: LLM optimizes SQL query based on best practices."""
+        """Step 2: LLM optimizes SQL query based on best practices using the enhanced prompt."""
         
         prompt = f"""
 You are an expert Snowflake SQL Performance Engineer. Analyze and optimize the following query for maximum performance while maintaining identical results.
-... (Optimization prompt omitted for brevity) ...
+
+ORIGINAL QUERY:{state['query_text']}
+
+PERFORMANCE BASELINE:
+- Current Execution Time: {state['original_execution_time_ms']} ms
+- Bytes Scanned: {state['original_bytes_scanned']} bytes
+- Current Warehouse: {state.get('original_warehouse', 'Unknown')}
+
+MANDATORY OPTIMIZATION TECHNIQUES (Apply at least 2-3 relevant techniques):
+
+1. **SELECT Optimization**:
+    - Replace SELECT * with explicit columns
+    - Remove unused columns
+    - Use approximate functions (APPROX_COUNT_DISTINCT) for large datasets
+
+2. **WHERE Clause Optimization**:
+    - Push filters earlier in subqueries/CTEs
+    - Avoid functions on indexed columns (e.g., UPPER(column) = 'VALUE')
+    - Use partition pruning where possible
+
+3. **JOIN Optimization**:
+    - Reorder joins to process smaller tables first
+    - Convert subqueries to JOINs where beneficial
+    - Add join conditions to reduce Cartesian products
+
+4. **Subquery Optimization**:
+    - Convert correlated subqueries to JOINs
+    - Use QUALIFY instead of window function subqueries
+    - Move subqueries to CTEs for better readability
+
+5. **Aggregation Optimization**:
+    - Filter before GROUP BY when possible
+    - Remove unnecessary DISTINCT
+    - Use HAVING only for aggregate filters
+
+6. **Snowflake-Specific**:
+    - Leverage result caching hints (if appropriate)
+    - Consider the underlying table structure (clustering keys) for filtering
+
+VALIDATION RULES:
+✅ MUST produce identical results as original
+✅ MUST be syntactically valid Snowflake SQL
+✅ MUST include at least 2 meaningful optimizations
+❌ CANNOT return the exact same query as original
+
+If the query is already optimal and cannot be improved, apply these minimal changes:
+- Convert SELECT * to explicit column list
+- Add query comments with optimization notes
+- Format for better readability
 Response as JSON:
 {{
     "optimized_query": "REWRITTEN SQL QUERY HERE",
@@ -169,15 +242,18 @@ Response as JSON:
             response = self.genai_model.invoke(prompt)
             result_text = response.content.strip()
             
-            if "```json" in result_text: result_text = result_text.split("```json")[1].split("```")[0].strip()
-            elif "```" in result_text: result_text = result_text.split("```")[1].split("```")[0].strip()
+            # Robust JSON cleaning
+            if "```json" in result_text:
+                result_text = result_text.split("```json")[1].split("```")[0].strip()
+            elif "```" in result_text:
+                result_text = result_text.split("```")[1].split("```")[0].strip()
             
             result = json.loads(result_text)
             state['optimized_query'] = result['optimized_query']
             state['optimization_suggestions'] = result['optimizations']
             
         except Exception as e:
-            state['optimized_query'] = state['query_text'] 
+            state['optimized_query'] = state['query_text'] # Fallback to original
             state['optimization_suggestions'] = [f"Using original query due to optimization error: {str(e)}"]
             state['error_message'] = str(e)
         
@@ -185,27 +261,46 @@ Response as JSON:
     
     # ----------------- LANGGRAPH NODE 3: EXECUTE IN SNOWFLAKE (ACCURATE TIMING) -----------------
     def execute_in_snowflake(self, state: AgentState) -> AgentState:
-        """Step 3: Execute optimized query and retrieve official execution time."""
+        """Step 3: Execute optimized query and retrieve official execution time from history."""
         
         conn = None
         try:
             conn = self.get_snowflake_connection(warehouse=state['recommended_warehouse'])
             cursor = conn.cursor()
-    
+            
             # Get actual warehouse name for logging
             cursor.execute("SELECT CURRENT_WAREHOUSE()")
             state['actual_warehouse_used'] = cursor.fetchone()[0]
             
             # Execute the optimized query
-            start_time = time.time()
             cursor.execute(state['optimized_query'])
             
-            execution_duration_ms = (time.time() - start_time) * 1000 
+            # CAPTURE THE QUERY ID IMMEDIATELY after execution
+            query_id_executed = cursor.sfqid 
+            results = cursor.fetchall()
             
-            state['new_execution_time_ms'] = execution_duration_ms
-            state['execution_status'] = 'SUCCESS'
-            state['execution_result'] = f"Query executed successfully on {state['actual_warehouse_used']}."
+            # Retrieve official TOTAL_ELAPSED_TIME from INFORMATION_SCHEMA
+            time.sleep(1) # Crucial wait time for history logging
             
+            history_query = f"""
+            SELECT TOTAL_ELAPSED_TIME 
+            FROM TABLE(INFORMATION_SCHEMA.QUERY_HISTORY(END_TIME_RANGE_START=>DATEADD('MINUTE', -5, CURRENT_TIMESTAMP())))
+            WHERE QUERY_ID = '{query_id_executed}'
+            ORDER BY START_TIME DESC
+            LIMIT 1
+            """
+            cursor.execute(history_query)
+            history_result = cursor.fetchone()
+            
+            if history_result:
+                state['new_execution_time_ms'] = float(history_result[0])
+                state['execution_status'] = 'SUCCESS'
+                state['execution_result'] = f"Query executed successfully. Returned {len(results)} rows. (Query ID: {query_id_executed})"
+            else:
+                state['execution_status'] = 'SUCCESS_NO_TIME'
+                state['new_execution_time_ms'] = 0 
+                state['execution_result'] = f"Success, but official time not available yet. (Query ID: {query_id_executed})"
+
             cursor.close()
             
         except Exception as e:
@@ -220,6 +315,7 @@ Response as JSON:
         
         return state
     
+    # ----------------- WORKFLOW BUILDER -----------------
     def build_workflow(self):
         """Defines the sequential LangGraph pipeline."""
         workflow = StateGraph(AgentState)
@@ -247,6 +343,9 @@ Response as JSON:
         )
         return self.workflow.invoke(initial_state)
 
+# ==============================================================================
+# STREAMLIT MAIN APPLICATION (MULTI-PAGE ROUTER)
+# ==============================================================================
 
 def set_page(page_name):
     """Updates session state to control which page function is rendered."""
@@ -254,45 +353,39 @@ def set_page(page_name):
 
 # ----------------- PAGE 1: DATA LOADING AND SELECTION -----------------
 def page_1_load_data():
-    st.header("📊 Load Data and Select Records")
+    st.header(" Load Data and Select Records")
     
     col1, col2 = st.columns([3, 1])
     with col1:
-        st.info(f"Source Table: **{TARGET_DB}.{TARGET_SCHEMA}.OPTIMIZER_BASELINE_DATA**")
+        st.info(f"Table: **snowflake_datas** | Database: {SNOWFLAKE_CONFIG.get('database', 'UNKNOWN')}")
     with col2:
-        if st.button("🔄 Load All Records", type="primary"):
+        if st.button(" Load All Records", type="primary"):
             try:
                 with st.spinner("Connecting to Snowflake and loading records..."):
                     conn = snowflake.connector.connect(**SNOWFLAKE_CONFIG)
-                    
-                    # Target the verified baseline table
-                    query = f"""
+                    query = """
                     SELECT 
                         QUERY_ID, QUERY_TEXT, ORIGINAL_WAREHOUSE, QUERY_TYPE,
                         ORIGINAL_EXECUTION_TIME_MS, ORIGINAL_BYTES_SCANNED,
-                        ORIGINAL_EFFICIENCY_SCORE, 
-                        ORIGINAL_COST AS ORIGINAL_ESTIMATED_COST 
-                    FROM {TARGET_DB}.{TARGET_SCHEMA}.OPTIMIZER_BASELINE_DATA
-                    ORDER BY RECORD_TIMESTAMP DESC;
+                        ORIGINAL_EFFICIENCY_SCORE, ORIGINAL_ESTIMATED_COST
+                    FROM snowflake_datas
+                    ORDER BY RANDOM()
                     """
                     df = pd.read_sql(query, conn)
                     conn.close()
                     
-                    # Ensure column names are uppercase to match AgentState
-                    df.columns = df.columns.str.upper() 
-                    
                     st.session_state.all_records = df
                     st.success(f"✅ Loaded {len(df)} records successfully! Ready for analysis.")
             except Exception as e:
-                st.error(f"❌ Error loading data. Ensure table {TARGET_DB}.{TARGET_SCHEMA}.OPTIMIZER_BASELINE_DATA exists: {str(e)}")
-                st.stop()
+                # If connection fails, this error message is displayed
+                st.error(f"❌ Error loading data. Check Snowflake config/connection and IP whitelisting: {str(e)}")
 
     if st.session_state.all_records is not None:
         df = st.session_state.all_records
         st.subheader(f"📋 All Records ({len(df)} total)")
         st.dataframe(df, use_container_width=True, height=300)
         st.markdown("---")
-
+        
         st.subheader("🎯 Select Records for Analysis")
         num_records = st.slider(
             "How many records should the LLM analyze?",
@@ -312,13 +405,12 @@ def page_1_load_data():
             if len(st.session_state.selected_records) > 0:
                 st.session_state.execution_results = [] 
                 set_page("analysis")
-                st.rerun()
             else:
                 st.warning("Please load and select at least one record.")
 
 # ----------------- PAGE 2: LLM ANALYSIS AND OPTIMIZATION -----------------
 def page_2_analysis():
-    st.header("🤖  LLM Analysis and Optimization")
+    st.header("🤖  LLM Analysis and Optimization")
     
     if st.button("⬅️ Back to Data Selection", key="back_to_page1"):
         set_page("data_load")
@@ -330,7 +422,7 @@ def page_2_analysis():
     col1, col2 = st.columns(2)
     
     with col1:
-        if st.button("🧠 Run LLM Analysis & Get Recommendations", type="primary", use_container_width=True):
+        if st.button(" Run LLM Analysis & Get Recommendations", type="primary", use_container_width=True):
             try:
                 agent = WarehouseOptimizerAgent(GEMINI_API_KEY, SNOWFLAKE_CONFIG)
                 st.session_state.recommendations = []
@@ -341,21 +433,16 @@ def page_2_analysis():
                 for idx, row in st.session_state.selected_records.iterrows():
                     status_text.text(f"🔍 Analyzing Query {idx + 1}/{num_records}: {row['QUERY_ID']}")
                     
-                    # --- Convert Pandas row to AgentState compatible dict ---
-                    record_dict = row.to_dict()
-                    for key in ['ORIGINAL_EXECUTION_TIME_MS', 'ORIGINAL_BYTES_SCANNED', 'ORIGINAL_EFFICIENCY_SCORE', 'ORIGINAL_ESTIMATED_COST']:
-                        record_dict[key] = float(record_dict[key]) if pd.notna(record_dict.get(key)) else 0.0
-
                     initial_state = AgentState(
-                        query_id=str(record_dict['QUERY_ID']), query_text=record_dict['QUERY_TEXT'], original_warehouse=record_dict['ORIGINAL_WAREHOUSE'], query_type=record_dict['QUERY_TYPE'],
-                        original_execution_time_ms=record_dict['ORIGINAL_EXECUTION_TIME_MS'], original_bytes_scanned=record_dict['ORIGINAL_BYTES_SCANNED'],
-                        original_efficiency_score=record_dict['ORIGINAL_EFFICIENCY_SCORE'], original_estimated_cost=record_dict['ORIGINAL_ESTIMATED_COST'],
+                        query_id=str(row['QUERY_ID']), query_text=row['QUERY_TEXT'], original_warehouse=row['ORIGINAL_WAREHOUSE'], query_type=row['QUERY_TYPE'],
+                        original_execution_time_ms=float(row['ORIGINAL_EXECUTION_TIME_MS']), original_bytes_scanned=float(row['ORIGINAL_BYTES_SCANNED']),
+                        original_efficiency_score=float(row['ORIGINAL_EFFICIENCY_SCORE']), original_estimated_cost=float(row['ORIGINAL_ESTIMATED_COST']),
                         recommended_warehouse='', optimization_reason='', optimized_query='',
                         optimization_suggestions=[], execution_result='', new_execution_time_ms=0,
                         actual_warehouse_used='', execution_status='PENDING', error_message=''
                     )
                     
-                    # Execute LangGraph: Recommend -> Optimize
+                    # Execute recommend_warehouse and optimize_query nodes
                     state = agent.recommend_warehouse(initial_state)
                     state = agent.optimize_query(state)
                     
@@ -425,6 +512,7 @@ def page_3_validation_and_results():
             try:
                 agent = WarehouseOptimizerAgent(GEMINI_API_KEY, SNOWFLAKE_CONFIG)
                 st.session_state.execution_results = []
+                
                 progress_bar = st.progress(0)
                 status_text = st.empty()
                 total_recs = len(st.session_state.recommendations)
@@ -442,7 +530,9 @@ def page_3_validation_and_results():
                     progress_bar.progress((idx + 1) / total_recs)
                 
                 status_text.text("✅ All executions complete!")
-                    
+                st.success("🎉 All queries attempted!")
+                st.rerun()
+                
             except Exception as e:
                 st.error(f"❌ Execution error: {str(e)}")
     
@@ -457,6 +547,7 @@ def page_3_validation_and_results():
         
         with col1:
             st.metric(" Successful Runs", f"{successful}/{len(st.session_state.execution_results)}")
+        
         with col2:
             avg_improvement = sum([
                 ((r['original_execution_time_ms'] - r['new_execution_time_ms']) / r['original_execution_time_ms'] * 100)
@@ -493,6 +584,8 @@ def page_3_validation_and_results():
                 height=400
             )
             st.plotly_chart(fig, use_container_width=True)
+
+        # --- RESULTS DATAFRAME ---
         st.subheader("Detailed Results Table")
         results_df = pd.DataFrame([{
             'Query ID': r['query_id'],
@@ -525,11 +618,11 @@ def main():
     # Render the fixed, global header
     st.markdown("""
     <div class="main-header">
-        <h1>🤖 Snowflake Warehouse Optimizer with AI Agent</h1>
-        <p>Analyze queries, recommend warehouses, optimize SQL, and verify automatically using Gemini & LangGraph.</p>
+        <h1>Snowflake Warehouse and Query Optimizer </h1>
+        <p>Analyze queries, recommend warehouses and optimize SQL.</p>
     </div>
     """, unsafe_allow_html=True)
-
+    
     # --- FIX: INITIALIZE ALL SESSION STATE AT THE START ---
     if 'page' not in st.session_state:
         st.session_state.page = "data_load"
@@ -560,4 +653,9 @@ def main():
 
 if __name__ == "__main__":
     main()
+
+
+
+
+
 
