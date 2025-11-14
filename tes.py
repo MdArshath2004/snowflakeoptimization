@@ -493,9 +493,7 @@ def page_3_validation_and_results():
                 height=400
             )
             st.plotly_chart(fig, use_container_width=True)
-
-        # --- RESULTS DATAFRAME ---
-        st.subheader("Detailed Results Table")    
+        st.subheader("Detailed Results Table")
         results_df = pd.DataFrame([{
             'Query ID': r['query_id'],
             'Original WH': r['original_warehouse'],
@@ -562,3 +560,4 @@ def main():
 
 if __name__ == "__main__":
     main()
+
