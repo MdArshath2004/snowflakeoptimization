@@ -11,27 +11,29 @@ from datetime import datetime
 import json
 import time
 import os
-# from dotenv import load_dotenv # REMOVED: Since configuration is hardcoded
+# dotenv and os.environ calls REMOVED
 
 # ==================== CONFIGURATION & SECRETS (HARDCODED) ====================
 
 # 1. Gemini API Key (HARDCODED)
 GEMINI_API_KEY = "AIzaSyB6iL-_lsdXyXSGa8HpmeAKjavgf0amVUs" 
 
-# 2. Snowflake Configuration (HARDCODED)
+# 2. Snowflake Configuration (HARDCODED to specific paths)
 SNOWFLAKE_CONFIG = {
     'account': 'AUYWMHB-UN24606',
     'user': 'MOHAMEDARSHATH3',
     'password': 'Arshath@302004', 
-    'database': 'SNOWFLAKE_SAMPLE_DATA',
-    'schema': 'TPCH_SF1',
+    'database': 'MOHAMED_ARSHATH_PROJECT_DB', # FIXED: Target Database
+    'schema': 'BASELINE_DATA',                # FIXED: Target Schema
     'warehouse': 'COMPUTE_WH'
 }
 
 # Target table path components
-TARGET_DB = SNOWFLAKE_CONFIG.get('database')
-TARGET_SCHEMA = SNOWFLAKE_CONFIG.get('schema')
-TARGET_TABLE_NAME = "OPTIMIZER_BASELINE_DATA" 
+TARGET_DB = SNOWFLAKE_CONFIG['database']
+TARGET_SCHEMA = SNOWFLAKE_CONFIG['schema']
+TARGET_TABLE_NAME = "OPTIMIZER_BASELINE_DATA" # The confirmed table name
+TARGET_TABLE_FULL = f"{TARGET_DB}.{TARGET_SCHEMA}.{TARGET_TABLE_NAME}"
+
 
 # Application constraints and resources
 USABLE_WAREHOUSES = [
@@ -64,7 +66,6 @@ st.set_page_config(
     layout="wide"
 )
 
-# FIX: Corrected the typo in the keyword argument (unsafe_allow_html_html -> unsafe_allow_html)
 st.markdown("""
 <style>
     .main-header {
@@ -79,7 +80,7 @@ st.markdown("""
         width: 100%;
     }
 </style>
-""", unsafe_allow_html=True) # <-- CORRECTED LINE
+""", unsafe_allow_html=True)
 
 class AgentState(TypedDict):
     """The shared memory for the LangGraph workflow."""
@@ -146,12 +147,26 @@ class WarehouseOptimizerAgent:
         available_wh_list = ", ".join(USABLE_WAREHOUSES)
         
         prompt = f"""You are a Snowflake warehouse optimization expert. Analyze this query and recommend the best warehouse.
-        ... (Full prompt omitted for brevity) ...
-        Response as JSON:
-        {{
-            "recommended_warehouse": "WAREHOUSE_NAME_FROM_LIST",
-            "reasoning": "detailed explanation"
-        }}"""
+
+Available Warehouses (You MUST choose one of these exact names): {available_wh_list}
+
+Current Query Details:
+- Query ID: {state['query_id']}
+- Current Warehouse: {state['original_warehouse']}
+- Query Type: {state['query_type']}
+- Execution Time: {state['original_execution_time_ms']} ms
+- Bytes Scanned: {state['original_bytes_scanned']} bytes
+- Efficiency Score: {state['original_efficiency_score']}
+- Current Cost: ${state['original_estimated_cost']}
+
+Query:
+{state['query_text']}
+... (Prompt details here) ...
+Response as JSON:
+{{
+    "recommended_warehouse": "WAREHOUSE_NAME_FROM_LIST",
+    "reasoning": "detailed explanation"
+}}"""
         
         try:
             response = self.genai_model.invoke(prompt)
@@ -281,25 +296,31 @@ def set_page(page_name):
 
 # ----------------- PAGE 1: DATA LOADING AND SELECTION -----------------
 def page_1_load_data():
+    
+    # Define target table path
+    TARGET_DB = SNOWFLAKE_CONFIG.get('database')
+    TARGET_SCHEMA = SNOWFLAKE_CONFIG.get('schema')
+    TARGET_TABLE_FULL = f"{TARGET_DB}.{TARGET_SCHEMA}.OPTIMIZER_BASELINE_DATA"
+    
     st.header("📊 Load Data and Select Records")
     
     col1, col2 = st.columns([3, 1])
     with col1:
-        st.info(f"Source Table: **{TARGET_DB}.{TARGET_SCHEMA}.OPTIMIZER_BASELINE_DATA**")
+        st.info(f"Source Table: **{TARGET_TABLE_FULL}**")
     with col2:
         if st.button("🔄 Load All Records", type="primary"):
             try:
                 with st.spinner("Connecting to Snowflake and loading records..."):
                     conn = _create_snowflake_connection_safe(SNOWFLAKE_CONFIG)
                     
-                    # Target the verified baseline table
+                    # Target the verified baseline table and alias ORIGINAL_COST
                     query = f"""
                     SELECT 
                         QUERY_ID, QUERY_TEXT, ORIGINAL_WAREHOUSE, QUERY_TYPE,
                         ORIGINAL_EXECUTION_TIME_MS, ORIGINAL_BYTES_SCANNED,
                         ORIGINAL_EFFICIENCY_SCORE, 
                         ORIGINAL_COST AS ORIGINAL_ESTIMATED_COST 
-                    FROM {TARGET_DB}.{TARGET_SCHEMA}.OPTIMIZER_BASELINE_DATA
+                    FROM {TARGET_TABLE_FULL}
                     ORDER BY RECORD_TIMESTAMP DESC;
                     """
                     df = pd.read_sql(query, conn)
@@ -311,7 +332,7 @@ def page_1_load_data():
                     st.session_state.all_records = df
                     st.success(f"✅ Loaded {len(df)} records successfully! Ready for analysis.")
             except Exception as e:
-                st.error(f"❌ Error loading data. Ensure table {TARGET_DB}.{TARGET_SCHEMA}.OPTIMIZER_BASELINE_DATA exists: {str(e)}")
+                st.error(f"❌ Error loading data. Ensure table {TARGET_TABLE_FULL} exists: {str(e)}")
                 st.stop()
 
     if st.session_state.all_records is not None:
@@ -371,7 +392,7 @@ def page_2_analysis():
                     # --- Convert Pandas row to AgentState compatible dict ---
                     record_dict = row.to_dict()
                     for key in ['ORIGINAL_EXECUTION_TIME_MS', 'ORIGINAL_BYTES_SCANNED', 'ORIGINAL_EFFICIENCY_SCORE', 'ORIGINAL_ESTIMATED_COST']:
-                        record_dict[key] = float(record_dict[key]) if pd.notna(record_dict.get(key)) else 0.0
+                        record_dict[key] = float(record_dict.get(key, 0)) if pd.notna(record_dict.get(key)) else 0.0
 
                     initial_state = AgentState(
                         query_id=str(record_dict['QUERY_ID']), query_text=record_dict['QUERY_TEXT'], original_warehouse=record_dict['ORIGINAL_WAREHOUSE'], query_type=record_dict['QUERY_TYPE'],
@@ -591,4 +612,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-
