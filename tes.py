@@ -18,12 +18,12 @@ GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY")
 
 # 2. Snowflake Configuration (Reads values directly from os.environ)
 SNOWFLAKE_CONFIG = {
-    'account': os.environ.get('SF_ACCOUNT'),
-    'user': os.environ.get('SF_USER'),
-    'password': os.environ.get('SF_PASSWORD'), 
-    'database': os.environ.get('SF_DATABASE'),
-    'schema': os.environ.get('SF_SCHEMA'),
-    'warehouse': os.environ.get('SF_WAREHOUSE')
+    'account': os.environ.get('ACCOUNT'),
+    'user': os.environ.get('USER'),
+    'password': os.environ.get('PASSWORD'), 
+    'database': os.environ.get('DATABASE'),
+    'schema': os.environ.get('SCHEMA'),
+    'warehouse': os.environ.get('WAREHOUSE')
 }
 
 # Target table path components
@@ -372,4 +372,5 @@ def main():
 
 if __name__ == "__main__":
     main()
+
 
