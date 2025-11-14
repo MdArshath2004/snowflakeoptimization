@@ -330,7 +330,7 @@ def page_1_load_data():
                         ORIGINAL_EFFICIENCY_SCORE, 
                         ORIGINAL_COST AS ORIGINAL_ESTIMATED_COST 
                     FROM {TARGET_TABLE_FULL}
-                    ORDER BY RECORD_TIMESTAMP DESC;
+                    ORDER BY Random();
                     """
                     df = pd.read_sql(query, conn)
                     conn.close()
@@ -621,4 +621,5 @@ def main():
 
 if __name__ == "__main__":
     main()
+
 
