@@ -16,8 +16,7 @@ import os
 # ==================== CONFIGURATION & SECRETS (HARDCODED) ====================
 
 # 1. Gemini API Key (HARDCODED)
-GEMINI_API_KEY = "AIzaSyCRbP8fryI0cCfmPoLh9aYQxekxINdg5iQ" 
-
+GEMINI_API_KEY = "AIzaSyCRbP8fryI0cCfmPoLh9aYQxekxINdg5iQ"
 # 2. Snowflake Configuration (HARDCODED to specific paths)
 SNOWFLAKE_CONFIG = {
     'account': 'AUYWMHB-UN24606',
@@ -620,5 +619,6 @@ def main():
 
 if __name__ == "__main__":
     main()
+
 
 
