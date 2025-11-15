@@ -16,11 +16,6 @@ import uuid    # Added for unique ID generation
 import numpy as np # Added for numerical operations
 import re      # Added for text cleaning
 
-# NOTE: For advanced clustering (HDBSCAN), uncomment the lines below and install libraries:
-# import hdbscan
-# from sentence_transformers import SentenceTransformer
-# CLUSTER_MIN_SIZE = 5
-
 # ==================== CONFIGURATION & SECRETS (HARDCODED) ====================
 
 # WARNING: REPLACE THESE HARDCODED SECRETS WITH STREAMLIT SECRETS FOR DEPLOYMENT!
@@ -215,9 +210,12 @@ Response as JSON:
             state['error_message'] = str(e)
         return state
     
-    # --- LANGGRAPH NODE 3: EXECUTE IN SNOWFLAKE (SCALABLE CHECK ADDED) ---
+    # --- LANGGRAPH NODE 3: EXECUTE IN SNOWFLAKE (OFFICIAL METRIC TIMING) ---
     def execute_in_snowflake(self, state: AgentState) -> AgentState:
-        """Step 3: Execute optimized query and retrieve official execution time."""
+        """
+        Step 3: Executes optimized query and retrieves OFFICIAL TOTAL_ELAPSED_TIME 
+        directly from Snowflake's query metrics.
+        """
         
         # SCALABILITY BYPASS CHECK
         if state.get('execution_status') == 'SKIPPED_BY_CLUSTER':
@@ -229,18 +227,31 @@ Response as JSON:
         try:
             conn = self.get_snowflake_connection(warehouse=state['recommended_warehouse'])
             cursor = conn.cursor()
+            
+            # 1. Execute the optimized query and get its ID
+            cursor.execute(state['optimized_query'])
+            query_id = cursor.sfqid # Get the ID of the executed query
+
+            # 2. Get actual warehouse name
             cursor.execute("SELECT CURRENT_WAREHOUSE()")
             state['actual_warehouse_used'] = cursor.fetchone()[0]
-            start_time = time.time()
-            cursor.execute(state['optimized_query'])
-            execution_duration_ms = (time.time() - start_time) * 1000 
-            state['new_execution_time_ms'] = execution_duration_ms
+
+            # 3. Retrieve the official elapsed time (in milliseconds) using RESULT_SCAN
+            time_query = f"SELECT TOTAL_ELAPSED_TIME FROM TABLE(RESULT_SCAN('{query_id}'))"
+            cursor.execute(time_query) 
+            
+            # The result is the official execution time in milliseconds (integer)
+            execution_duration_ms = cursor.fetchone()[0] 
+            
+            state['new_execution_time_ms'] = float(execution_duration_ms)
             state['execution_status'] = 'SUCCESS'
-            state['execution_result'] = f"Query executed successfully on {state['actual_warehouse_used']}."
+            state['execution_result'] = f"Query executed successfully on {state['actual_warehouse_used']} (Snowflake time captured)."
+        
         except Exception as e:
             state['execution_status'] = 'FAILED'
             state['error_message'] = str(e)
             state['new_execution_time_ms'] = 0
+            state['execution_result'] = f"Execution failed: {str(e)}"
         finally:
             if conn: conn.close()
         return state
